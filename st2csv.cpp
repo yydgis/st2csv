@@ -8,6 +8,11 @@
 
 #define MAXFIELD 100
 
+#define PI          3.1415926535897932  /* pi */
+#define D2R         (PI/180.0)          /* deg to rad */
+#define R2D         (180.0/PI)          /* rad to deg */
+
+
 static int parse_fields(char* const buffer, char** val, char key)
 {
     char* p, * q;
@@ -50,6 +55,7 @@ struct mount_t
     std::string sys;
     std::string rcv;
     std::string country;
+    std::string antenna;
 };
 
 static void read_st(const char* fname, std::map<std::string, mount_t>& mMount)
@@ -113,16 +119,21 @@ int read_csv(const char* fname, std::map<std::string, mount_t>& mMount)
         if (line_index < 2) continue;
 
         int num = parse_fields(buffer, val, ',');
-        if (num < 3) continue;
+        if (num < 1) continue;
 
         std::string name = std::string(val[0]);
-        double lat = atof(val[1]);
-        double lon = atof(val[2]);
+
+        double lat = (num > 1) ? atof(val[1]) : 0;
+        double lon = (num > 2) ? atof(val[2]) : 0;
 
         mount_t mount;
         mount.lat = lat;
         mount.lon = lon;
         mount.name = name;
+
+        if (num > 3) mount.country = std::string(val[3]);
+        if (num > 4) mount.antenna = std::string(val[4]);
+        if (num > 5) mount.rcv = std::string(val[5]);
 
         mMount[name] = mount;
 
@@ -173,12 +184,47 @@ int diff_csv(const char* fname1, const char* fname2)
     }
     return 0;
 }
-
+int exclude_csv(const char* fname1, const char* fname2)
+{
+    std::map<std::string, mount_t> mMount1;
+    std::map<std::string, mount_t> mMount2;
+    read_csv(fname1, mMount1);
+    read_csv(fname2, mMount2);
+    FILE* fOUT = set_output_file(fname1, "-exclude.csv");
+    for (std::map<std::string, mount_t>::iterator pM1 = mMount1.begin(); pM1 != mMount1.end(); ++pM1)
+    {
+        std::map<std::string, mount_t>::iterator pM2 = mMount2.find(pM1->first);
+        if (fOUT) fprintf(fOUT,"%s,%8.3f,%8.3f,%s,%s,%s,%c\n", pM1->first.c_str(), pM1->second.lat, pM1->second.lon, pM1->second.country.c_str(), pM1->second.antenna.c_str(), pM1->second.rcv.c_str(), pM2 == mMount2.end() ? ' ' : '*');
+    }
+    if (fOUT) fclose(fOUT);
+    return 0;
+}
 int main(int argc, const char* argv[])
 {
     if (argc > 2)
     {
-        diff_csv(argv[1], argv[2]);
+        if (argc > 3 && strstr(argv[1], "diffcsv"))
+        {
+            diff_csv(argv[2], argv[3]);
+        }
+        else if (argc > 3 && strstr(argv[1], "exclude"))
+        {
+            exclude_csv(argv[2], argv[3]);
+        }
+        else if (argc > 3 && strstr(argv[1], "diffblh"))
+        {
+            double blh1[3] = { atof(argv[2]) * D2R, atof(argv[3]) * D2R, atof(argv[4]) };
+            double blh2[3] = { atof(argv[5]) * D2R, atof(argv[6]) * D2R, atof(argv[7]) };
+            double l2n = 0;
+            double l2e = lat2local(blh1[0], &l2n);
+
+            double dB = blh2[0] - blh1[0];
+            double dL = blh2[1] - blh1[1];
+            double dN = dB * l2n;
+            double dE = dL * l2e;
+            double dU = blh2[2] - blh1[2];
+            printf("%10.4f,%10.4f,%10.4f\n", dN, dE, dU);
+        }
     }
     else  if (argc > 1)
     {
