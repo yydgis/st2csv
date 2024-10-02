@@ -119,21 +119,23 @@ int read_csv(const char* fname, std::map<std::string, mount_t>& mMount)
         if (line_index < 2) continue;
 
         int num = parse_fields(buffer, val, ',');
-        if (num < 1) continue;
+        if (num < 2) continue;
 
-        std::string name = std::string(val[0]);
+        std::string country = std::string(val[0]);
 
-        double lat = (num > 1) ? atof(val[1]) : 0;
-        double lon = (num > 2) ? atof(val[2]) : 0;
+        std::string name = std::string(val[1]);
+
+        double lat = (num > 2) ? atof(val[2]) : 0;
+        double lon = (num > 3) ? atof(val[3]) : 0;
 
         mount_t mount;
         mount.lat = lat;
         mount.lon = lon;
         mount.name = name;
+        mount.country = country;
 
-        if (num > 3) mount.country = std::string(val[3]);
-        if (num > 4) mount.antenna = std::string(val[4]);
-        if (num > 5) mount.rcv = std::string(val[5]);
+        if (num > 4) mount.rcv = std::string(val[4]);
+        //if (num > 5) mount.antenna = std::string(val[5]);
 
         mMount[name] = mount;
 
@@ -163,12 +165,14 @@ int diff_csv(const char* fname1, const char* fname2)
     read_csv(fname2, mMount2);
     for (std::map<std::string, mount_t>::iterator pM1 = mMount1.begin(); pM1 != mMount1.end(); ++pM1)
     {
+        if (fabs(pM1->second.lat) < 0.001 && fabs(pM1->second.lon) < 0.001) continue;
         double bestD = -1;
         double l2n = 0;
         double l2e = lat2local(pM1->second.lat * 3.1415926 / 180.0, &l2n);
         std::string bestM;
         for (std::map<std::string, mount_t>::iterator pM2 = mMount2.begin(); pM2 != mMount2.end(); ++pM2)
         {
+            if (fabs(pM2->second.lat) < 0.001 && fabs(pM2->second.lon) < 0.001) continue;
             double dB = pM1->second.lat - pM2->second.lat;
             double dL = pM1->second.lon - pM2->second.lon;
             double dN = dB * 3.1415926 / 180.0 * l2n;
@@ -180,7 +184,7 @@ int diff_csv(const char* fname1, const char* fname2)
                 bestM = pM2->first;
             }
         }
-        printf("%s,%7.2f,%7.2f,%14.4f,%s\n", pM1->first.c_str(), pM1->second.lat, pM1->second.lon, bestD, bestM.c_str());
+        printf("%s,%s,%7.2f,%7.2f,%s,%7.2f,%s\n", pM1->second.country.c_str(), pM1->first.c_str(), pM1->second.lat, pM1->second.lon, pM1->second.rcv.c_str(), bestD/1000.0, bestM.c_str());
     }
     return 0;
 }
@@ -234,10 +238,10 @@ int main(int argc, const char* argv[])
         if (mMount.size() > 0)
         {
             FILE* fOUT1 = set_output_file(argv[1], "-st.csv");
-            if (fOUT1) fprintf(fOUT1, "name,lat,lon,country,constellation,receiver type\n");
+            if (fOUT1) fprintf(fOUT1, "country,name,lat,lon,receiver type,constellation\n");
             for (std::map<std::string, mount_t>::iterator pMount = mMount.begin(); pMount != mMount.end(); ++pMount)
             {
-                if (fOUT1) fprintf(fOUT1, "%20s,%8.4f,%8.4f,%s,%s,%s\n", pMount->first.c_str(), pMount->second.lat, pMount->second.lon, pMount->second.country.c_str(), pMount->second.sys.c_str(), pMount->second.rcv.c_str());
+                if (fOUT1) fprintf(fOUT1, "%s,%s,%8.4f,%8.4f,%s,%s\n", pMount->second.country.c_str(), pMount->first.c_str(), pMount->second.lat, pMount->second.lon, pMount->second.rcv.c_str(), pMount->second.sys.c_str());
             }
             if (fOUT1) fclose(fOUT1);
         }
