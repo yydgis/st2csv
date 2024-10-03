@@ -5,6 +5,7 @@
 #include <vector>
 #include <map>
 #include <string>
+#include <algorithm>
 
 #define MAXFIELD 100
 
@@ -64,11 +65,13 @@ static void read_st(const char* fname, std::map<std::string, mount_t>& mMount)
 
     if (fLOG ==NULL) return;
 
+    FILE* fOUT = set_output_file(fname, "-out.json");
 
     char buffer[255] = { 0 };
     char* val[MAXFIELD];
 
     int line_index = 0;
+    int count = 0;
 
     while (fLOG && !feof(fLOG))
     {
@@ -96,8 +99,50 @@ static void read_st(const char* fname, std::map<std::string, mount_t>& mMount)
 
         mMount[name] = mount;
 
+        if (fOUT)
+        {
+            if (count == 0)
+            {
+                fprintf(fOUT, "[");
+            }
+            else
+            {
+                fprintf(fOUT, ",");
+            }
+            std::string new_name;
+            if (name.length() > 4)
+                new_name = name.substr(name.length() - 4);
+            else
+            {
+                for (int i = name.length(); i < 4; ++i)
+                    new_name += "0";
+                new_name += name;
+            }
+            transform(new_name.begin(), new_name.end(), new_name.begin(), ::toupper);
+            std::string new_country;
+            if (country.length() > 3)
+                new_country = country.substr(country.length() - 3);
+            else
+            {
+                for (int i = country.length(); i < 3; ++i)
+                    new_country += "0";
+                new_country += country;
+            }
+            fprintf(fOUT, "{\"no\":%i,\"host\":\"ntrip.info\",\"port\":\"2101\",\"mountpoint\": \"%s\",\"username\": \"user\",\"password\": \"password\",\"name\": \"00%s000%s\",\"type\": \"http\"}", count, name.c_str(), new_country.c_str(), new_name.c_str());
+        }
+
+        ++count;
+
     }
     if (fLOG) fclose(fLOG);
+    if (fOUT)
+    {
+        if (count > 0)
+        {
+            fprintf(fOUT, "]");
+        }
+        fclose(fOUT);
+    }
     return;
 }
 
@@ -107,11 +152,14 @@ int read_csv(const char* fname, std::map<std::string, mount_t>& mMount)
 
     if (fLOG == NULL) return 0;
 
+    FILE* fOUT = set_output_file(fname, "-out.json");
 
     char buffer[255] = { 0 };
     char* val[MAXFIELD];
 
     int line_index = 0;
+
+    int count = 0;
 
     while (fLOG && !feof(fLOG) && fgets(buffer, sizeof(buffer), fLOG))
     {
@@ -139,8 +187,40 @@ int read_csv(const char* fname, std::map<std::string, mount_t>& mMount)
 
         mMount[name] = mount;
 
+        if (fOUT)
+        {
+            std::string new_name;
+            if (name.length() > 4)
+                new_name = name.substr(name.length() - 4);
+            else
+            {
+                for (int i = name.length(); i < 4; ++i)
+                    new_name += "0";
+                new_name += name;
+            }
+            transform(new_name.begin(), new_name.end(), new_name.begin(), ::toupper);
+            std::string new_country;
+            if (country.length() > 3)
+                new_country = country.substr(country.length() - 3);
+            else
+            {
+                for (int i = country.length(); i < 3; ++i)
+                    new_country += "0";
+                new_country += country;
+            }
+            fprintf(fOUT, "{\"no\":%i,\"host\":\"ntrip.info\",\"port\":\"2101\",\"mountpoint\": \"%s\",\"username\": \"user\",\"password\": \"password\",\"name\": \"00%s000%s\,\"type\": \"http\"},", count, name.c_str(), new_country.c_str(), new_name.c_str());
+        }
+        ++count;
     }
     if (fLOG) fclose(fLOG);
+    if (fOUT)
+    {
+        if (count > 0)
+        {
+            fprintf(fOUT, "]");
+        }
+        fclose(fOUT);
+    }
     return (int)mMount.size();
 }
 
@@ -184,7 +264,33 @@ int diff_csv(const char* fname1, const char* fname2)
                 bestM = pM2->first;
             }
         }
-        printf("%s,%s,%7.2f,%7.2f,%s,%7.2f,%s\n", pM1->second.country.c_str(), pM1->first.c_str(), pM1->second.lat, pM1->second.lon, pM1->second.rcv.c_str(), bestD/1000.0, bestM.c_str());
+        if (bestD < 0)
+        {
+
+        }
+        else
+        {
+            std::string name;
+            if (pM1->first.length() > 4) 
+                name = pM1->first.substr(pM1->first.length() - 4);
+            else
+            {
+                for (int i = pM1->first.length(); i < 4; ++i)
+                    name += "0";
+                name += pM1->first;
+            }
+            transform(name.begin(), name.end(), name.begin(),::toupper);
+            std::string country;
+            if (pM1->second.country.length() > 3)
+                country = pM1->second.country.substr(pM1->second.country.length() - 3);
+            else
+            {
+                for (int i = pM1->second.country.length(); i < 3; ++i)
+                    country += "0";
+                country += pM1->second.country;
+            }
+            printf("%s,%s,%7.2f,%7.2f,%s,%7.2f,%s,name=00%s000%s&mountpoint=%s'\n", pM1->second.country.c_str(), pM1->first.c_str(), pM1->second.lat, pM1->second.lon, pM1->second.rcv.c_str(), bestD / 1000.0, bestM.c_str(), country.c_str(), name.c_str(), pM1->first.c_str());
+        }
     }
     return 0;
 }
